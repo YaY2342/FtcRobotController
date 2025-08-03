@@ -5,25 +5,99 @@ import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp
 public class TeleOp extends LinearOpMode {
+    public enum robotStates {
+        SCORE,
+        SCORE_ELBOW_RETRACT,
+        SCORE_SLIDES_EXTEND,
+        SCORE_SHOULDER_EXTEND,
+        SCORE_ELBOW_EXTEND,
+        SCORE_CLAW_OPEN,
+        SCORE_SHOULDER_RETRACT,
+        SCORE_SLIDES_DOWN,
+        // PU means Pick_UP
+        PU_SPECIMEN,
+        PU_SHOULDER_EXTEND,
+        PU_CLAW_OPEN,
+        PU_ELBOW_EXTEND,
+        PU_CLAW_CLOSE,
+        PU_SHOULDER_UP,
+        PU_ELBOW_RETRACT,
+        PU_SHOULDER_RETRACT
+    }
+
+
     @Override
     public void runOpMode() throws InterruptedException {
         // Declare our motors
         // Make sure your ID's match your configuration
-        DcMotor frontLeftMotor = hardwareMap.dcMotor.get("frontLeftMotor");
-        DcMotor backLeftMotor = hardwareMap.dcMotor.get("backLeftMotor");
-        DcMotor frontRightMotor = hardwareMap.dcMotor.get("frontRightMotor");
-        DcMotor backRightMotor = hardwareMap.dcMotor.get("backRightMotor");
-
+        DcMotor frontLeftMotor = hardwareMap.dcMotor.get("left_front");
+        DcMotor backLeftMotor = hardwareMap.dcMotor.get("left_back");
+        DcMotor frontRightMotor = hardwareMap.dcMotor.get("right_front");
+        DcMotor backRightMotor = hardwareMap.dcMotor.get("back_right");
+        DcMotor SL = hardwareMap.dcMotor.get("slidesLeft");
+        DcMotor SR = hardwareMap.dcMotor.get("slidesRight");
         // Reverse the right side motors. This may be wrong for your setup.
         // If your robot moves backwards when commanded to go forwards,
         // reverse the left side instead.
         // See the note about this earlier on this page.
         frontRightMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         backRightMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        // C(servoname) stands for CLAW(servo) like CWrist, is the claw wrist movement.
+
+        Servo CW = hardwareMap.get(Servo.class, "wrist");
+        Servo CE = hardwareMap.get(Servo.class, "elbow");
+        Servo claw = hardwareMap.get(Servo.class, "claw");
+        Servo CS = hardwareMap.get(Servo.class, "shoulder");
+
+        // NONE OF THESE ARE PROBABLY THE RIGHT AMOUNT SINCE I CANNOT TUNE!
+
+        // These are for the SLIDES
+        int score = 4;
+        int low = 1;
+        int pu = 2;
+
+        // These are for the CLAW
+        final double open = 1;
+        final double close = .2;
+
+        // These are for the ELBOW joint
+        final double elbowExtended = 1;
+        final double elbowRetracted = .5;
+
+        // These are for the SHOULDER joint
+        final double shoulderExtended = .5;
+        final double shoulderRetracted = .2;
+        final double shoulderUP = 1;
+
+        // These are for the WRIST joint
+        final double wrist = .2;
+
+        robotStates robot = robotStates.PU_SPECIMEN;
+        ElapsedTime timer = new ElapsedTime();
+
+
+
+        // A slow mode so that you can easily control the robot.
+        if (gamepad1.right_bumper){
+            frontLeftMotor.setPower(.6);
+            frontRightMotor.setPower(.6);
+            backLeftMotor.setPower(.6);
+            backRightMotor.setPower(.6);
+        }
+        else {
+            frontLeftMotor.setPower(.9);
+            frontRightMotor.setPower(.9);
+            backLeftMotor.setPower(.9);
+            backRightMotor.setPower(.9);
+        }
 
         // Retrieve the IMU from the hardware map
         IMU imu = hardwareMap.get(IMU.class, "imu");
@@ -71,6 +145,140 @@ public class TeleOp extends LinearOpMode {
             backLeftMotor.setPower(backLeftPower);
             frontRightMotor.setPower(frontRightPower);
             backRightMotor.setPower(backRightPower);
+
+            switch(robot){
+                case SCORE:
+                    CW.setPosition(wrist);
+                    if (gamepad1.a){
+                        robot = robotStates.SCORE_ELBOW_RETRACT;
+                        timer.reset();
+                    }
+                    break;
+                case SCORE_ELBOW_RETRACT:
+                    CE.setPosition(elbowRetracted);
+                    if (timer.milliseconds() > 800)
+                    {
+                        robot = robotStates.SCORE_SLIDES_EXTEND;
+                        timer.reset();
+                    }
+                    break;
+                case SCORE_SLIDES_EXTEND:
+                    SR.setTargetPosition((int) score);
+                    SL.setTargetPosition((int) score);
+                    if (timer.milliseconds() > 1200)
+                    {
+                        robot = robotStates.SCORE_SHOULDER_EXTEND;
+                        timer.reset();
+                    }
+                    break;
+                case SCORE_SHOULDER_EXTEND:
+                    CS.setPosition(shoulderExtended);
+                    if (timer.milliseconds() > 1200)
+                    {
+                        robot = robotStates.SCORE_ELBOW_EXTEND;
+                        timer.reset();
+                    }
+                    break;
+                case SCORE_ELBOW_EXTEND:
+                    CE.setPosition(elbowExtended);
+                    if (timer.milliseconds() > 500)
+                    {
+                        robot = robotStates.SCORE_CLAW_OPEN;
+                        timer.reset();
+                    }
+                    break;
+                case SCORE_CLAW_OPEN:
+                    claw.setPosition(open);
+                    if (timer.milliseconds() > 100)
+                    {
+                        robot = robotStates.SCORE_SHOULDER_RETRACT;
+                        timer.reset();
+                    }
+                    break;
+                case SCORE_SHOULDER_RETRACT:
+                    CS.setPosition(shoulderRetracted);
+                    if (timer.milliseconds() > 500)
+                    {
+                        robot = robotStates.SCORE_SLIDES_DOWN;
+                        timer.reset();
+                    }
+                    break;
+                case SCORE_SLIDES_DOWN:
+                    SR.setTargetPosition((int) low);
+                    SL.setTargetPosition((int) low);
+                    if (timer.milliseconds() > 200)
+                    {
+                        robot = robotStates.PU_SPECIMEN;
+                        timer.reset();
+                    }
+                    break;
+                case PU_SPECIMEN:
+                    SR.setTargetPosition((int) pu);
+                    SL.setTargetPosition((int) pu);
+                    if (gamepad1.b)
+                    {
+                        robot = robotStates.PU_SHOULDER_EXTEND;
+                        timer.reset();
+                    }
+                    break;
+                case PU_SHOULDER_EXTEND:
+                    CS.setPosition(shoulderExtended);
+                    if (timer.milliseconds() > 300)
+                    {
+                        robot = robotStates.PU_CLAW_OPEN;
+                        timer.reset();
+                    }
+                    break;
+                case PU_CLAW_OPEN:
+                    claw.setPosition(open);
+                    if (timer.milliseconds() > 100)
+                    {
+                        robot = robotStates.PU_ELBOW_EXTEND;
+                        timer.reset();
+                    }
+                    break;
+                case PU_ELBOW_EXTEND:
+                    CE.setPosition(elbowExtended);
+                    if (timer.milliseconds() > 500)
+                    {
+                        robot = robotStates.PU_CLAW_CLOSE;
+                        timer.reset();
+                    }
+                    break;
+                case PU_CLAW_CLOSE:
+                    claw.setPosition(close);
+                    if (timer.milliseconds() > 100)
+                    {
+                        robot = robotStates.PU_SHOULDER_UP;
+                        timer.reset();
+                    }
+                    break;
+                case PU_SHOULDER_UP:
+                    CS.setPosition(shoulderUP);
+                    if (timer.milliseconds() > 300)
+                    {
+                        robot = robotStates.PU_ELBOW_RETRACT;
+                        timer.reset();
+                    }
+                    break;
+                case PU_ELBOW_RETRACT:
+                    CE.setPosition(elbowRetracted);
+                    if (timer.milliseconds() > 300)
+                    {
+                        robot = robotStates.PU_SHOULDER_RETRACT;
+                        timer.reset();
+                    }
+                    break;
+                case PU_SHOULDER_RETRACT:
+                    CS.setPosition(shoulderRetracted);
+                    if (timer.milliseconds() > 500)
+                    {
+                        robot = robotStates.SCORE;
+                        timer.reset();
+                    }
+                    break;
+            }
+
         }
     }
 }
